@@ -1,4 +1,5 @@
-"""Async VK API."""
+"""Async VK API wrapper."""
+__all__ = ['VK', 'VKError', 'MethodGroup', 'Method']
 
 from typing import Optional, Any
 
@@ -25,11 +26,13 @@ class VK:
     _base_url: str = "https://api.vk.com/method/"
 
     def __init__(self, token: str, version: float | str = '5.131',
-                 session: Optional[ClientSession] = None):
+                 session: Optional[ClientSession] = None, *args, **kwargs):
+        super().__init__(*args, **kwargs)  # Can be used in multiple inheritance
 
         self._version = version
         self._token = token
 
+        self._owns_session = session is None
         if session:
             self._session = session
         else:
@@ -43,9 +46,19 @@ class VK:
     async def __call__(self, method: str, **params):
         """Call the method with given name and parameters."""
 
+        await self.before_request(method, params)
+
+        data = await self._invoke(method, params)
+
+        return await self.after_request(method, data)
+
+    async def _invoke(self, method: str,
+                      params: dict[str, Any]) -> dict[str, Any]:
+        """Actual method call."""
+
         async with self._session.get(
             self._base_url + method,
-            params=self.base_params | params  # urlencoded automatically
+            params=params | self.base_params  # urlencoded automatically
         ) as resp:
             data = await resp.json()
 
@@ -54,11 +67,30 @@ class VK:
         except KeyError:
             raise VKError(method, data['error']) from None
 
+    async def before_request(self, method: str, params: dict[str, Any]) -> None:
+        """Add/remove/modify parameters if necessary."""
+        pass
+
+    async def after_request(self, method: str, data: dict[str, Any]) -> Any:
+        """Convert data to desired format."""
+        return data
+
     def __getattr__(self, group_name: str):
         return MethodGroup(self, group_name)
 
+    async def __aenter__(self) -> "VK":
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.dispose()
+
     async def dispose(self):
-        await self._session.close()
+        """Disposes of any resources that were created.
+        Any use beyond the call of this method is undefined behavior."""
+
+        if self._owns_session and self._session:
+            await self._session.close()
+            self._session = None
 
 
 class MethodGroup:
