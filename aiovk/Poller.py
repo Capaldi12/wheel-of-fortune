@@ -1,5 +1,6 @@
 """Poller for long polling."""
 from functools import partial
+from traceback import print_exc
 from typing import Callable, Optional, Any
 from asyncio import Task, create_task
 
@@ -9,7 +10,7 @@ from aiohttp import ClientSession
 class Poller:
     """Polls long poll server and passes updates to callback function"""
 
-    callback: Callable
+    callbacks: dict[str, Callable]
 
     def __init__(self, server: str, key: str, ts: int = 1, wait: int = 25,
                  session: Optional[ClientSession] = None):
@@ -29,6 +30,11 @@ class Poller:
         self.running = False
         self.task: Optional[Task] = None
 
+        self.callbacks = {'': self.__no_op}
+
+    async def __no_op(*_, **__):
+        pass
+
     @property
     def params(self) -> dict[str, Any]:
         """Parameters for long poll request."""
@@ -40,21 +46,8 @@ class Poller:
             'wait': self.wait
         }
 
-    async def start_polling(self, new_callback: Optional[Callable] = None,
-                            *args, **kwargs):
-        """
-        Start polling of long poll server.
-        Assign new callback to callback if provided.
-        All additional arguments and keyword arguments
-        will be passed to new_callback on call.
-        Make sure new_callback can accept updates list.
-
-        :param new_callback: new callback to set.
-        :param args: arguments to new callback.
-        :param kwargs: keyword arguments to new callback.
-        """
-        if new_callback:
-            self.callback = partial(new_callback, *args, **kwargs)
+    async def start_polling(self):
+        """Start polling of long poll server."""
 
         if not self.running:
             self.running = True
@@ -72,7 +65,8 @@ class Poller:
 
         while self.running:
             updates = await self.get_updates()
-            await self.callback(updates)
+            for update in updates:
+                await self.handle(update)
 
     async def get_updates(self) -> list[dict]:
         """Perform long poll request."""
@@ -82,6 +76,55 @@ class Poller:
 
         self.ts = data['ts']
         return data['updates']
+
+    async def handle(self, update):
+        """Handle an update."""
+
+        try:
+            type_ = update['type']
+            if type_ in self.callbacks:
+                await self.callbacks[type_](update)
+            else:
+                await self.callbacks[''](update)
+
+        except:  # Logging purposes
+            print_exc()
+
+    def on(self, update_type: str, callback: Callable, **kwargs):
+        """
+        Register callback function for given update type.
+
+        :param update_type: Type of the update.
+        :param callback: Callback function.
+        :param kwargs: Extra arguments for callback function.
+        :return: This poller for chaining.
+        """
+
+        self.callbacks[update_type] = partial(callback, **kwargs)
+        return self
+
+    def default(self, callback: Callable, **kwargs):
+        """
+        Set default callback function.
+
+        :param callback: Callback function.
+        :param kwargs: Extra arguments for callback function.
+        :return: This poller for chaining.
+        """
+
+        self.callbacks[''] = partial(callback, **kwargs)
+        return self
+
+    def ignore(self, update_type: str):
+        """
+        Ignore specified update type (don't pass it even to fallback).
+
+        :param update_type: Update type to ignore.
+        :return: This poller for chaining.
+        """
+
+        self.callbacks[update_type] = self.__no_op
+        return self
 
     async def dispose(self):
         """Stop polling if running and dispose of session if it was created."""
