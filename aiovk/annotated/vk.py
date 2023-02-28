@@ -5,7 +5,7 @@ import random
 from typing import Any
 
 from ..base import VK as BaseVK, MethodGroup, Method, VKError
-from ..Poller import Poller
+from .poller import Poller
 
 
 class VK(BaseVK):
@@ -23,7 +23,7 @@ class VK(BaseVK):
         },
         'groups.getLongPollServer': {
             'convert_result': lambda data, self=None: Poller(
-                data['server'], data['key'], data['ts'],
+                self, data['server'], data['key'], data['ts'],
                 session=self._session if self else None)
         }
     }

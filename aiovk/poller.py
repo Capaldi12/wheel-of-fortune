@@ -11,6 +11,7 @@ class Poller:
     """Polls long poll server and passes updates to callback function"""
 
     callbacks: dict[str, Callable]
+    error_handler: Callable
 
     def __init__(self, server: str, key: str, ts: int = 1, wait: int = 25,
                  session: Optional[ClientSession] = None):
@@ -31,9 +32,16 @@ class Poller:
         self.task: Optional[Task] = None
 
         self.callbacks = {'': self.__no_op}
+        self.error_handler = self.__handler
 
+    @staticmethod
     async def __no_op(*_, **__):
         pass
+
+    @staticmethod
+    async def __handler(exception):
+        print_exc()
+        return True
 
     @property
     def params(self) -> dict[str, Any]:
@@ -51,7 +59,7 @@ class Poller:
 
         if not self.running:
             self.running = True
-            self.task = create_task(self.poll())
+            self.task = create_task(self._poll())
 
     async def stop_polling(self):
         """Stop polling of long poll server."""
@@ -60,15 +68,15 @@ class Poller:
             self.running = False
             await self.task
 
-    async def poll(self):
+    async def _poll(self):
         """Polling loop."""
 
         while self.running:
-            updates = await self.get_updates()
+            updates = await self._get_updates()
             for update in updates:
-                await self.handle(update)
+                await self._handle(update)
 
-    async def get_updates(self) -> list[dict]:
+    async def _get_updates(self) -> list[dict]:
         """Perform long poll request."""
 
         async with self.session.get(self.server, params=self.params) as resp:
@@ -77,18 +85,25 @@ class Poller:
         self.ts = data['ts']
         return data['updates']
 
-    async def handle(self, update):
+    async def _handle(self, update):
         """Handle an update."""
 
         try:
             type_ = update['type']
+            update = self._prepare_update(update)
+
             if type_ in self.callbacks:
                 await self.callbacks[type_](update)
             else:
                 await self.callbacks[''](update)
 
-        except:  # Logging purposes
-            print_exc()
+        except Exception as e:
+            if not await self.error_handler(e):
+                await self.__handler(e)
+
+    def _prepare_update(self, update: dict) -> Any:
+        """Place to add extra data or convert to data type."""
+        return update
 
     def on(self, update_type: str, callback: Callable, **kwargs):
         """
@@ -100,7 +115,10 @@ class Poller:
         :return: This poller for chaining.
         """
 
-        self.callbacks[update_type] = partial(callback, **kwargs)
+        if kwargs:
+            callback = partial(callback, **kwargs)
+
+        self.callbacks[update_type] = callback
         return self
 
     def default(self, callback: Callable, **kwargs):
@@ -112,7 +130,10 @@ class Poller:
         :return: This poller for chaining.
         """
 
-        self.callbacks[''] = partial(callback, **kwargs)
+        if kwargs:
+            callback = partial(callback, **kwargs)
+
+        self.callbacks[''] = callback
         return self
 
     def ignore(self, update_type: str):
@@ -124,6 +145,23 @@ class Poller:
         """
 
         self.callbacks[update_type] = self.__no_op
+        return self
+
+    def on_error(self, handler: Callable):
+        """
+        Set error handler.
+
+        Handler should return True if error is handled. If False is returned,
+        error will be handled by default handler.
+
+        Don't raise exceptions in handler - they will just kill polling task
+        without any indication.
+
+        :param handler: New error handler.
+        :return: This poller for chaining.
+        """
+
+        self.error_handler = handler
         return self
 
     async def dispose(self):

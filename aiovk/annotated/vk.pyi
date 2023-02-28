@@ -1,7 +1,7 @@
 """Annotated version of VK API wrapper."""
 from ..base import VK as BaseVK, \
     MethodGroup as MethodGroup, Method as Method, VKError as VKError
-from ..Poller import Poller
+from .poller import Poller
 from .keyboard import Keyboard
 from typing import Any
 
@@ -72,4 +72,16 @@ class Messages(MethodGroup):
         :param intent: String describing intent.
         :param subscribe_id: Reserved for future use when working with intents.
         :return: id of sent message or, if `peer_ids` was used, array of objects, describing sent messages.
+        """
+
+    async def sendMessageEventAnswer(self, *, event_id: str, user_id: int,
+                                     peer_id: int, event_data: str):
+        """
+        Send response to message event (sent when callback button is pressed).
+
+        :param event_id: id of the event.
+        :param user_id: id of the user triggering the event.
+        :param peer_id: id of the dialog of the event.
+        :param event_data: Action to perform (see https://dev.vk.com/api/bots/development/keyboard#Callback-кнопки).
+        :return: Number 1, for some reason?
         """

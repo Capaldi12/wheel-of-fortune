@@ -203,7 +203,7 @@ class Keyboard:
 
         return self
 
-    def vkpay_button(self, hash: str, payload: str | Any = None) -> "Keyboard":
+    def vkpay_button(self, hash_: str, payload: str | Any = None) -> "Keyboard":
         """
         Add vkpay button to current row. Takes up whole row.
         Opens payment window with payment specified by hash
@@ -211,7 +211,7 @@ class Keyboard:
 
         Can be chained with other methods.
 
-        :param hash: Payment parameters.
+        :param hash_: Payment parameters.
         :param payload: Kept for backward compatibility.
         :return: This keyboard to chain methods.
         """
@@ -226,15 +226,15 @@ class Keyboard:
         self._add_button({
             'action': {
                 'type': self.Type.VKPay,
-                'hash': hash,
+                'hash': hash_,
                 'payload': payload,
             },
         })
 
         return self
 
-    def open_app_button(self, app_id: int, owner_id: int, label: str, hash: str,
-                        payload: str | Any = None) -> "Keyboard":
+    def open_app_button(self, app_id: int, owner_id: int, label: str,
+                        hash_: str, payload: str | Any = None) -> "Keyboard":
         """
         Add open app button to current row. Takes up whole row.
         Opens specified VK Mini App.
@@ -244,7 +244,7 @@ class Keyboard:
         :param app_id: id of the app to open.
         :param owner_id: id of the community owning the app.
         :param label: Name of the app, displayed on button.
-        :param hash: navigation hash for the app
+        :param hash_: navigation hash for the app
             (will be sent after # in launch params).
         :param payload: Kept for backward compatibility.
         :return: This keyboard to chain methods.
@@ -263,7 +263,7 @@ class Keyboard:
                 'app_id': app_id,
                 'owner_id': owner_id,
                 'label': label,
-                'hash': hash,
+                'hash': hash_,
                 'payload': payload,
             },
         })
