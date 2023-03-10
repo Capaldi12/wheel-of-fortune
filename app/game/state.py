@@ -7,3 +7,10 @@ class State:
     wheel = 1
     player_turn = 2
     finished = 3
+
+    names = [
+        'starting',
+        'wheel',
+        'player_turn',
+        'finished'
+    ]

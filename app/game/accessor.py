@@ -118,9 +118,10 @@ class GameAccessor(Accessor):
         :return: Round or None if it doesn't exist.
         """
 
-        # TODO fix this, this should take latest round
         return await self._one_or_none(
-            select(Round).where(Round.chat_id == chat_id))
+            select(Round).where(Round.chat_id == chat_id)
+            .order_by(Round.start_time.desc()).limit(1)
+        )
 
     async def list_rounds(self, topic_id: int = None) -> List[Round]:
         """

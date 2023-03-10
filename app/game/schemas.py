@@ -7,9 +7,10 @@ __all__ = [
     'RoundId'
 ]
 
-from marshmallow import Schema, fields
+from marshmallow import Schema, fields, post_dump
 
 from ..schemas import OkResponseSchema
+from .state import State
 
 
 # Model schemas
@@ -37,13 +38,18 @@ class RoundSchema(Schema):
     chat_id = fields.Integer()
     topic = fields.Nested(TopicSchema)
     guessed_letters = fields.String()
-    current_state = fields.Integer()  # TODO post_dump ??
+    current_state = fields.Integer()
     current_player_order = fields.Integer()
     score_up_next = fields.Integer()
     start_time = fields.DateTime()
     last_turn = fields.DateTime()
     winner_id = fields.Integer()
     players = fields.List(fields.Nested(PlayersSchema))
+
+    @post_dump
+    def string_state(self, data, **kwargs):
+        data['current_state'] = State.names[data['current_state']]
+        return data
 
 
 # Auxiliary schemas
