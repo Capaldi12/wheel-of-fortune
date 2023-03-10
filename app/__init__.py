@@ -17,6 +17,7 @@ from .middlewares import error_handling_middleware, auth_middleware
 
 # Modules
 from . import admin
+from . import game
 
 
 def setup_app(config_path):
@@ -35,6 +36,7 @@ def setup_app(config_path):
     app.store = Store(app)
 
     app.add_routes(admin.routes)
+    app.add_routes(game.routes)
 
     setup_aiohttp_apispec(
         app, title="Wheel Of Fortune Bot",

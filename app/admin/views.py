@@ -1,8 +1,7 @@
 """Views for the admin module."""
 __all__ = ['routes']
 
-from aiohttp.web import RouteTableDef
-from aiohttp.web_exceptions import HTTPForbidden
+from aiohttp.web import RouteTableDef, HTTPForbidden
 from aiohttp_apispec import docs, request_schema, response_schema
 from aiohttp_session import new_session, get_session
 
