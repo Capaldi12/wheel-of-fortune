@@ -40,6 +40,7 @@ class Poller:
 
     @staticmethod
     async def __handler(exception):
+        print('Error in Poller:')
         print_exc()
         return True
 
