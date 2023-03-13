@@ -27,6 +27,7 @@ class PlayersSchema(Schema):
     """Player of the round."""
 
     user_id = fields.Integer()
+    name = fields.String()
     order = fields.Integer()
     score = fields.Integer()
 
@@ -63,6 +64,11 @@ class TopicList(Schema):
     """List of topics."""
 
     topics = fields.List(fields.Nested(TopicSchema))
+    count = fields.Integer()
+
+    @post_dump
+    def set_count(self, data, **kwargs):
+        return {'count': len(data['topics'])} | data
 
 
 class OneRound(Schema):
@@ -74,6 +80,11 @@ class OneRound(Schema):
 class RoundList(Schema):
     """List of rounds."""
     rounds = fields.List(fields.Nested(RoundSchema))
+    count = fields.Integer()
+
+    @post_dump
+    def set_count(self, data, **kwargs):
+        return {'count': len(data['rounds'])} | data
 
 
 # Response schemas
