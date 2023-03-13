@@ -5,6 +5,7 @@ import typing
 
 from .admin import AdminAccessor
 from .game import GameAccessor
+from .bot import BotAccessor
 
 if typing.TYPE_CHECKING:
     from .application import Application
@@ -15,7 +16,9 @@ class Store:
 
     admins: AdminAccessor
     game: GameAccessor
+    bot: BotAccessor
 
     def __init__(self, app: 'Application'):
         self.admins = AdminAccessor(app)
         self.game = GameAccessor(app)
+        self.bot = BotAccessor(app)

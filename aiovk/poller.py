@@ -66,7 +66,7 @@ class Poller:
 
         if self.running:
             self.running = False
-            await self.task
+            self.task.cancel()
 
     async def _poll(self):
         """Polling loop."""
