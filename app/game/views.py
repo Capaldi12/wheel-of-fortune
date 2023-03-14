@@ -1,9 +1,9 @@
 """Views for game module."""
 
-from aiohttp.web import RouteTableDef, HTTPNotFound
+from aiohttp.web import RouteTableDef, HTTPNotFound, HTTPConflict
 from aiohttp_apispec import docs, response_schema, request_schema, \
     querystring_schema
-from sqlalchemy.exc import NoResultFound
+from sqlalchemy.exc import NoResultFound, IntegrityError
 
 from .schemas import *
 from ..application import View
@@ -91,6 +91,10 @@ class TopicView(View):
 
         except NoResultFound:
             raise HTTPNotFound(reason='No topic with given id') from None
+
+        except IntegrityError:
+            raise HTTPConflict(
+                reason='There are rounds using this topic') from None
 
         return json_response({})
 

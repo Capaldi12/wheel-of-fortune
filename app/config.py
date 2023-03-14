@@ -23,6 +23,8 @@ class BaseConfig:
                     and issubclass(type_, BaseConfig):
                 args[attr] = type_.from_dict(d[attr])
             else:
+                # We lose default values here
+                # Not critical, but may be unexpected
                 args[attr] = d.get(attr, None)
 
         return cls(**args)  # type: ignore
@@ -80,9 +82,19 @@ class AdminConfig(BaseConfig):
 
 
 @dataclass
+class BotConfig(BaseConfig):
+    """Configuration for vk bot."""
+
+    token: str
+    group_id: int
+    debug: bool
+
+
+@dataclass
 class Config(BaseConfig):
     """Main application configuration."""
 
     database: DatabaseConfig
     session: SessionConfig
     admin: AdminConfig
+    bot: BotConfig

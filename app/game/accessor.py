@@ -176,24 +176,30 @@ class GameAccessor(Accessor):
         :return: Created round.
         """
 
-        round_ = Round(chat_id=chat_id, topic_id=topic_id)
-
         async with self._session.begin() as session:
+            result = await session.execute(
+                select(Topic).where(Topic.id == topic_id))
+
+            topic = result.scalar_one()
+
+            round_ = Round(chat_id=chat_id, topic=topic)
             session.add(round_)
 
         return round_
 
-    async def join_round(self, round_id: int, user_id: int) -> TurnResult:
+    async def join_round(self, round_id: int, user_id: int,
+                         name: str = None) -> TurnResult:
         """
         Add player to the round.
 
         :param round_id: Round to add player to.
         :param user_id: User to add to the round.
+        :param name: Name of the player.
         :return: Whether round has enough players and the round itself.
         """
 
         async with self._round(round_id) as round_:
-            return round_.add_player(user_id), round_
+            return round_.add_player(user_id, name), round_
 
     async def spin_the_wheel(self, round_id: int) -> int:
         """
@@ -210,7 +216,7 @@ class GameAccessor(Accessor):
 
         return score
 
-    async def say_letter(self, round_id: int, letter: str) -> TurnResult:
+    async def say_letter(self, round_id: int, letter: str) -> Tuple[int, Round]:
         """
         Make turn of saying one letter for given round.
 
@@ -233,6 +239,18 @@ class GameAccessor(Accessor):
 
         async with self._round(round_id) as round_:
             return round_.check_word(word), round_
+
+    async def end_round(self, round_id: int) -> Round:
+        """
+        End the round prematurely.
+
+        :param round_id: Round to end.
+        :return: The round.
+        """
+
+        async with self._round(round_id) as round_:
+            round_.end_round()
+            return round_
 
     # Utility methods
     @property
