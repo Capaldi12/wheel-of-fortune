@@ -2,7 +2,7 @@
 __all__ = ['GameAccessor']
 
 from contextlib import asynccontextmanager
-from typing import Optional, Any, List, Tuple
+from typing import Optional, Any, List, Tuple, AsyncContextManager
 import random
 
 from sqlalchemy import select, Result, Select
@@ -167,25 +167,33 @@ class GameAccessor(Accessor):
         return await self._all(statement)
 
     # Game logic
-    async def new_round(self, chat_id: int, topic_id: int) -> Round:
+    async def new_round(self, chat_id: int, topic_id: int,
+                        player_count: int = None) -> Round:
         """
         Create new round for a given chat with specified topic.
 
         :param chat_id: id of the chat to start round in.
         :param topic_id: id of the topic for the round.
+        :param player_count: number of players in the round.
         :return: Created round.
         """
 
-        async with self._session.begin() as session:
+        async with self._session() as session:
             result = await session.execute(
                 select(Topic).where(Topic.id == topic_id))
 
             topic = result.scalar_one()
 
             round_ = Round(chat_id=chat_id, topic=topic)
-            session.add(round_)
 
-        return round_
+            if player_count is not None:
+                round_.player_count = player_count
+
+            session.add(round_)
+            await session.commit()
+            await session.refresh(round_)  # Help
+
+            return round_
 
     async def join_round(self, round_id: int, user_id: int,
                          name: str = None) -> TurnResult:
@@ -200,6 +208,18 @@ class GameAccessor(Accessor):
 
         async with self._round(round_id) as round_:
             return round_.add_player(user_id, name), round_
+
+    async def leave_round(self, round_id: int, user_id: int) -> TurnResult:
+        """
+        Remove player from the round.
+
+        :param round_id: Round to remove player from.
+        :param user_id: User to remove from the round.
+        :return: Whether player was current and the round itself.
+        """
+
+        async with self._round(round_id) as round_:
+            return round_.remove_player(user_id), round_
 
     async def spin_the_wheel(self, round_id: int) -> int:
         """
@@ -240,6 +260,43 @@ class GameAccessor(Accessor):
         async with self._round(round_id) as round_:
             return round_.check_word(word), round_
 
+    async def pin_message(self, round_id: int, message_id: int) -> Round:
+        """
+        Pin the message for given round.
+
+        :param round_id: Round to pin the message for.
+        :param message_id: Message to pin.
+        :return: The round.
+        """
+
+        async with self._round(round_id) as round_:
+            round_.pinned_message = message_id
+            return round_
+
+    async def unpin_message(self, round_id: int) -> Round:
+        """
+        Unpin the message for given round.
+
+        :param round_id: Round to unpin the message for.
+        :return: The round.
+        """
+
+        async with self._round(round_id) as round_:
+            round_.pinned_message = None
+            return round_
+
+    async def start_round(self, round_id: int) -> Round:
+        """
+        Start the round.
+
+        :param round_id: Round to start.
+        :return: The round.
+        """
+
+        async with self._round(round_id) as round_:
+            round_.start_round()
+            return round_
+
     async def end_round(self, round_id: int) -> Round:
         """
         End the round prematurely.
@@ -259,7 +316,7 @@ class GameAccessor(Accessor):
         return self.app.database.session
 
     @asynccontextmanager
-    async def _round(self, round_id: int) -> Round:
+    async def _round(self, round_id: int) -> AsyncContextManager[Round]:
         """Context manager to have transaction and a round to work with."""
 
         async with self._session.begin() as session:
