@@ -1,8 +1,9 @@
 """Configuration classes for the application."""
-__all__ = ['Config']
+__all__ = ['Config', 'BotConfig', 'DatabaseConfig',
+           'AdminConfig', 'SessionConfig']
 
 from typing import Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import yaml
 import json
@@ -23,9 +24,8 @@ class BaseConfig:
                     and issubclass(type_, BaseConfig):
                 args[attr] = type_.from_dict(d[attr])
             else:
-                # We lose default values here
-                # Not critical, but may be unexpected
-                args[attr] = d.get(attr, None)
+                if (value := d.get(attr)) is not None:
+                    args[attr] = value
 
         return cls(**args)  # type: ignore
 
@@ -88,6 +88,8 @@ class BotConfig(BaseConfig):
     token: str
     group_id: int
     debug: bool
+    app_id: int
+    chats: list[str] = field(default_factory=list)
 
 
 @dataclass

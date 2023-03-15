@@ -14,3 +14,4 @@ bot:
   token: no_token_for_you
   group_id: 1
   debug: true
+  app_id: 6441755
