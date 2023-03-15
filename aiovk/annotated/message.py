@@ -35,12 +35,21 @@ class ClientInfo:
 class Message:
     """Message received from VK API."""
 
+    @property
+    def is_private(self) -> bool:
+        """Whether message was sent in private dialog."""
+
+        return self.peer_id < 2e9
+
     def __init__(self, vk: "VK", message: dict[str, Any],
                  client_info: Optional[dict[str, Any]] = None):
 
         self.vk = vk
         self.message = message
         self.client_info = ClientInfo(client_info)
+
+        if 'payload' in self.message:
+            self.message['payload'] = json.loads(self.message['payload'])
 
     def __contains__(self, item: str) -> bool:
         return item in self.message
@@ -56,19 +65,36 @@ class Message:
         return f'{self.__class__.__name__}(' \
                f'{pformat(self.message, sort_dicts=False)})'
 
-    async def reply(self, **kwargs):
+    async def reply(self, **kwargs) -> int:
         """
         Send a reply for this message.
 
         :param kwargs: All the params of vk.messages.send method.
-        :return: Same as vk.messages.send.
+        :return: id of sent message (only for private messages).
         """
 
         return await self.vk.messages.send(peer_id=self.peer_id, **kwargs)
 
+    async def chat_reply(self, **kwargs) -> int:
+        """
+        Send a reply for this message.
+
+        :param kwargs: All the params of vk.messages.send method.
+        :return: Conversation id of sent message.
+        """
+
+        res = await self.vk.messages.send(peer_ids=self.peer_id, **kwargs)
+        return res[0]['conversation_message_id']
+
 
 class MessageEvent:
     """Event received from user pressing callback button."""
+
+    @property
+    def is_private(self) -> bool:
+        """Whether event was sent in private dialog."""
+
+        return self.peer_id < 2e9
 
     def __init__(self, vk: "VK", message_event: dict[str, Any]):
         self.vk = vk
@@ -149,15 +175,26 @@ class MessageEvent:
             peer_id=self.peer_id, event_data=self._dumps(self.payload)
         )
 
-    async def reply_with_message(self, **kwargs):
+    async def reply(self, **kwargs):
         """
         Send message in the chat in response to the event.
 
         :param kwargs: Params of vk.messages.send method.
-        :return: Same as vk.messages.send.
+        :return: id of sent message (only for private messages).
         """
 
         return await self.vk.messages.send(peer_id=self.peer_id, **kwargs)
+
+    async def chat_reply(self, **kwargs) -> int:
+        """
+        Send message in the chat in response to the event.
+
+        :param kwargs: All the params of vk.messages.send method.
+        :return: Conversation id of sent message.
+        """
+
+        res = await self.vk.messages.send(peer_ids=self.peer_id, **kwargs)
+        return res[0]['conversation_message_id']
 
     @staticmethod
     def _dumps(data: dict[str, Any]) -> str:
