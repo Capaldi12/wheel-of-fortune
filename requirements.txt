@@ -1,0 +1,5 @@
+aiohttp~=3.8.1
+SQLAlchemy~=2.0.4
+marshmallow~=3.17.0
+PyYAML~=6.0
+alembic~=1.8.1

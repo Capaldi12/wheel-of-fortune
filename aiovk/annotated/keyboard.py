@@ -233,8 +233,10 @@ class Keyboard:
 
         return self
 
-    def open_app_button(self, app_id: int, owner_id: int, label: str,
-                        hash_: str, payload: str | Any = None) -> "Keyboard":
+    def open_app_button(
+            self, app_id: int, owner_id: int, label: str,
+            hash_: str = None, payload: str | Any = None
+    ) -> "Keyboard":
         """
         Add open app button to current row. Takes up whole row.
         Opens specified VK Mini App.

@@ -12,10 +12,6 @@ from ..database import Base
 from .state import State
 
 
-# TODO make into field of the Round class (required on creation)
-N_PLAYERS = 3
-
-
 class Topic(Base):
     """Topic of the round. Represents word to guess."""
 
@@ -48,6 +44,7 @@ class Round(Base):
     id: Mapped[int] = mapped_column(primary_key=True, init=False)
 
     chat_id: Mapped[int]
+    player_count: Mapped[int] = mapped_column(default=3)
 
     topic_id: Mapped[int] = mapped_column(ForeignKey('topic.id'), default=None)
     topic: Mapped['Topic'] = relationship(
@@ -62,6 +59,7 @@ class Round(Base):
     last_turn: Mapped[datetime] = mapped_column(default_factory=datetime.now)
 
     winner_id: Mapped[int] = mapped_column(default=-1)
+    pinned_message: Mapped[Optional[int]] = mapped_column(default=None)
 
     players: Mapped[List['Player']] = relationship(
         back_populates='round', init=False,
@@ -75,6 +73,8 @@ class Round(Base):
 
     @property
     def display_word(self) -> str:
+        """Return the string to be displayed as the word to guess."""
+
         word = self.mask().replace('_', '▯').upper()
         # Space between letters, but not between ▯ (they bring their own)
         return re.sub(r"(?<!^)(\B)(?!$|▯)", " ", word)
@@ -88,9 +88,22 @@ class Round(Base):
 
     @property
     def users(self) -> List[int]:
+        """ids of all users in this round."""
+
         return [p.user_id for p in self.players]
 
+    @property
+    def winner(self) -> Optional['Player']:
+        """Return player object of the winner."""
+
+        if self.winner_id > 0:
+            return next(p for p in self.players if p.user_id == self.winner_id)
+
+        return None
+
     def final_scores(self) -> str:
+        """Mentions of players and their scores in descending order."""
+
         return '\n'.join(
             f'{p.mention()} - {p.score}'
             for p in sorted(self.players, key=lambda p: p.score, reverse=True)
@@ -99,7 +112,8 @@ class Round(Base):
     def next_player(self):
         """Set next player"""
 
-        self.current_player_order = (self.current_player_order + 1) % N_PLAYERS
+        self.current_player_order = \
+            (self.current_player_order + 1) % self.player_count
         self.current_state = State.wheel
 
     def check_letter(self, letter: str) -> int:
@@ -148,20 +162,70 @@ class Round(Base):
     def set_score(self, score: int):
         """Set result of the wheel spin."""
 
+        # There's something going on with pycharm typechecking and
+        # sqlalchemy's Mapped, which causes next line to be marked
+        # as wrong (expected Mapped[int] got int) which should not happen
         self.score_up_next = score  # type: ignore
         self.current_state = State.player_turn
 
     def add_player(self, user_id: int, name: str) -> bool:
-        """Add a player to the round."""
+        """
+        Add a player to the round.
+
+        :param user_id: User id of the player.
+        :param name: Display name of the player.
+        :return: Whether the game has enough players.
+        """
+
+        if len(self.players) == self.player_count:
+            raise ValueError('Maximum number of players reached.')
 
         self.players.append(
             Player(user_id=user_id, name=name, order=len(self.players)))
 
-        if len(self.players) == N_PLAYERS:
-            self.current_state = State.wheel
-            return True
+        return len(self.players) == self.player_count
 
-        return False
+    def remove_player(self, user_id: int) -> bool:
+        """
+        Remove a player from the round.
+
+        :param user_id: id of the player to remove.
+        :return: Whether removed player was the current one.
+        """
+
+        if user_id not in self.users:
+            raise ValueError(f'User {user_id} not in round')
+
+        removed = next(p for p in self.players if p.user_id == user_id)
+        self.players.remove(removed)
+
+        # Remove gap in orders
+        for player in self.players:
+            if player.order > removed.order:
+                player.order -= 1
+
+        # If game is in process, we won't get any more players
+        if self.current_state != State.starting:
+            self.player_count -= 1
+
+        return removed.order == self.current_player_order
+
+    def get_player(self, user_id: int) -> Optional['Player']:
+        """Get player by their user id, if such player exists in round."""
+
+        try:
+            return next(p for p in self.players if p.user_id == user_id)
+        except StopIteration:
+            return None
+
+    def start_round(self):
+        """Actually start the round."""
+
+        self.current_state = State.wheel
+
+        # In case someone left just before "Начать игру" was pressed
+        if len(self.players) < self.player_count:
+            self.player_count = len(self.players)  # type: ignore
 
     def end_round(self):
         """End the round prematurely."""

@@ -16,10 +16,30 @@ if typing.TYPE_CHECKING:
 class Poller(BasePoller):
     """Annotated version of Poller class."""
 
-    def __init__(self, vk: "VK", server: str, key: str, ts: int = 1,
+    def __init__(self, vk: "VK", group_id: int,
+                 server: str, key: str, ts: int = 1,
                  wait: int = 25, session: Optional[ClientSession] = None):
         super().__init__(server, key, ts, wait, session)
         self.vk = vk
+        self.group_id = group_id
+
+    async def _fail_handler(self, fail: BasePoller.Failed):
+        print(f'Polling failed with code {fail.code}')
+
+        if fail.code == 1:
+            self.ts = fail.ts
+            return
+
+        print('Requesting new poller')
+        poller = await self.vk.groups.getLongPollServer(group_id=self.group_id)
+
+        self.key = poller.key
+
+        if fail.code == 3:
+            self.server = poller.server
+
+        await poller.dispose()
+        print('Resuming polling')
 
     def _prepare_update(self, update: dict) -> Any:
         match update['type']:

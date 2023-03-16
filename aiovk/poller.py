@@ -10,8 +10,27 @@ from aiohttp import ClientSession
 class Poller:
     """Polls long poll server and passes updates to callback function"""
 
+    class Failed(Exception):
+        """Polling request has failed."""
+
+        code: int
+        ts: Optional[int]
+
+        def __init__(self, code: int, ts: int = None):
+            super().__init__()
+
+            self.code = code
+            self.ts = ts
+
+        def __str__(self):
+            return f'(failed: {self.code}, ts: {self.ts})'
+
+        def __repr__(self):
+            return f'{self.__class__.__name__}{self}'
+
     callbacks: dict[str, Callable]
     error_handler: Callable
+    fail_handler: Callable
 
     def __init__(self, server: str, key: str, ts: int = 1, wait: int = 25,
                  session: Optional[ClientSession] = None):
@@ -31,17 +50,24 @@ class Poller:
         self.running = False
         self.task: Optional[Task] = None
 
-        self.callbacks = {'': self.__no_op}
-        self.error_handler = self.__handler
+        self.callbacks = {'': self._no_op}
+        self.error_handler = self._error_handler
+        self.fail_handler = self._fail_handler
 
     @staticmethod
-    async def __no_op(*_, **__):
+    async def _no_op(*_, **__):
         pass
 
     @staticmethod
-    async def __handler(exception):
+    async def _error_handler(exception):
+        print('Error in Poller:')
         print_exc()
         return True
+
+    async def _fail_handler(self, fail: Failed):
+        # Ignores other types of fail, since there's no way to call api
+        if fail.code == 1:
+            self.ts = fail.ts
 
     @property
     def params(self) -> dict[str, Any]:
@@ -72,15 +98,25 @@ class Poller:
         """Polling loop."""
 
         while self.running:
-            updates = await self._get_updates()
-            for update in updates:
-                await self._handle(update)
+
+            try:
+                updates = await self._get_updates()
+
+            except Poller.Failed as fail:
+                await self.fail_handler(fail)
+
+            else:
+                for update in updates:
+                    await self._handle(update)
 
     async def _get_updates(self) -> list[dict]:
         """Perform long poll request."""
 
         async with self.session.get(self.server, params=self.params) as resp:
             data = await resp.json()
+
+        if 'failed' in data:
+            raise Poller.Failed(data['failed'], data.get('ts'))
 
         self.ts = data['ts']
         return data['updates']
@@ -99,7 +135,7 @@ class Poller:
 
         except Exception as e:
             if not await self.error_handler(e):
-                await self.__handler(e)
+                await self._error_handler(e)
 
     def _prepare_update(self, update: dict) -> Any:
         """Place to add extra data or convert to data type."""
@@ -144,7 +180,7 @@ class Poller:
         :return: This poller for chaining.
         """
 
-        self.callbacks[update_type] = self.__no_op
+        self.callbacks[update_type] = self._no_op
         return self
 
     def on_error(self, handler: Callable):
@@ -162,6 +198,27 @@ class Poller:
         """
 
         self.error_handler = handler
+        return self
+
+    def on_fail(self, handler: Callable):
+        """
+        Set handler for polling fail.
+
+        Handler should be used to repeat groups.getLongPollServer call and
+        update server, key and/or ts values. Handler will get Poller.Failed
+        object, containing code of fail (and ts, if it was returned).
+
+        code:
+            1 - event history is outdated or partially lost, use ts provided
+            2 - key expired, request new one using groups.getLongPollServer
+            3 - information lost, request new key and server using
+                groups.getLongPollServer
+
+        :param handler: New failure handler.
+        :return: This poller for chaining.
+        """
+
+        self.fail_handler = handler
         return self
 
     async def dispose(self):
