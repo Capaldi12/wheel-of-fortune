@@ -25,9 +25,11 @@ class VK(BaseVK):
             }
         },
         'groups.getLongPollServer': {
-            'convert_result': lambda data, self=None: Poller(
-                self, data['server'], data['key'], data['ts'],
-                session=self._session if self else None)
+            'convert_result': lambda data, params, self=None: Poller(
+                self, params['group_id'],
+                data['server'], data['key'], data['ts'],
+                session=self._session if self else None
+            )
         }
     }
 
@@ -50,9 +52,10 @@ class VK(BaseVK):
 
         return params
 
-    async def after_request(self, method: str, data: dict[str, Any]) -> Any:
+    async def after_request(self, method: str, params: dict[str, Any],
+                            data: dict[str, Any]) -> Any:
         if rule := self._rules.get(method):
             if convert_result := rule.get('convert_result'):
-                return convert_result(data, self=self)
+                return convert_result(data, params, self=self)
 
         return data

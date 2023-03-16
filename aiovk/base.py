@@ -50,7 +50,7 @@ class VK:
 
         data = await self._invoke(method, params)
 
-        return await self.after_request(method, data)
+        return await self.after_request(method, params, data)
 
     async def _invoke(self, method: str,
                       params: dict[str, Any]) -> dict[str, Any]:
@@ -71,7 +71,8 @@ class VK:
         """Add/remove/modify parameters if necessary."""
         pass
 
-    async def after_request(self, method: str, data: dict[str, Any]) -> Any:
+    async def after_request(self, method: str, params: dict[str, Any],
+                            data: dict[str, Any]) -> Any:
         """Convert data to desired format."""
         return data
 
