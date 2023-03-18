@@ -19,6 +19,6 @@ class Store:
     bot: BotAccessor
 
     def __init__(self, app: 'Application'):
-        self.admins = AdminAccessor(app)
-        self.game = GameAccessor(app)
-        self.bot = BotAccessor(app)
+        self.admins = AdminAccessor(app, 'admins')
+        self.game = GameAccessor(app, 'game')
+        self.bot = BotAccessor(app, 'bot')

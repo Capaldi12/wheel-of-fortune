@@ -3,7 +3,6 @@ __all__ = ['BotAccessor']
 
 import typing
 from typing import Optional, Tuple, List
-from traceback import print_exc
 
 from aiovk.annotated import VK, Poller, \
     Message, MessageEvent, VKError, Keyboard, Color
@@ -41,10 +40,12 @@ class BotAccessor(Accessor):
             .on_error(self.on_error)
 
         await self.poller.start_polling()
+        self.logger.debug('Bot startup')
 
     async def cleanup(self, app: 'Application'):
         await self.poller.stop_polling()
         await self.vk.dispose()
+        self.logger.debug('Bot cleanup')
 
     @property
     def game(self) -> 'GameAccessor':
@@ -78,6 +79,9 @@ class BotAccessor(Accessor):
 
         # For error reporting
         self._current_peer = message.peer_id
+
+        self.logger.info(f'New message in {message.peer_id} '
+                         f'({message.from_id}): {message.text}')
 
         if message.is_private:
             await self.on_private_message(message)
@@ -471,6 +475,9 @@ class BotAccessor(Accessor):
 
         self._current_peer = event.peer_id
 
+        self.logger.info(f'Event in {event.peer_id} ({event.user_id}): '
+                          f'{event.payload}')
+
         if event.is_private:
             await self.on_private_event(event)
 
@@ -666,8 +673,7 @@ class BotAccessor(Accessor):
         :return: Whether the error was handled.
         """
 
-        print('Error in BotAccessor:')
-        print_exc()
+        self.logger.exception('Error handling update')
 
         if self.debug and self._current_peer is not None:
             try:
@@ -677,7 +683,7 @@ class BotAccessor(Accessor):
                             f'\n\n{e.__class__.__name__}: {e}'
                 )
             except VKError:
-                print_exc()
+                self.logger.exception('Error sending error message')
 
             self._current_peer = None
 

@@ -1,4 +1,5 @@
 """Poller for long polling."""
+import logging
 from functools import partial
 from traceback import print_exc
 from typing import Callable, Optional, Any
@@ -16,6 +17,16 @@ class Poller:
         code: int
         ts: Optional[int]
 
+        @property
+        def reason(self) -> str:
+            """Reason for failure."""
+
+            return {
+                1: 'history outdated',
+                2: 'key expired',
+                3: 'information lost'
+            }.get(self.code)
+
         def __init__(self, code: int, ts: int = None):
             super().__init__()
 
@@ -31,6 +42,8 @@ class Poller:
     callbacks: dict[str, Callable]
     error_handler: Callable
     fail_handler: Callable
+
+    logger: logging.Logger
 
     def __init__(self, server: str, key: str, ts: int = 1, wait: int = 25,
                  session: Optional[ClientSession] = None):
@@ -54,18 +67,19 @@ class Poller:
         self.error_handler = self._error_handler
         self.fail_handler = self._fail_handler
 
+        self.logger = logging.getLogger('aiovk.poller')
+
     @staticmethod
     async def _no_op(*_, **__):
         pass
 
-    @staticmethod
-    async def _error_handler(exception):
-        print('Error in Poller:')
-        print_exc()
+    async def _error_handler(self, exception):
+        self.logger.exception('Error handling update')
         return True
 
     async def _fail_handler(self, fail: Failed):
         # Ignores other types of fail, since there's no way to call api
+        self.logger.warning(f'Polling failed: {fail.reason}')
         if fail.code == 1:
             self.ts = fail.ts
 
@@ -84,6 +98,8 @@ class Poller:
         """Start polling of long poll server."""
 
         if not self.running:
+            self.logger.debug('Start polling')
+
             self.running = True
             self.task = create_task(self._poll())
 
@@ -91,6 +107,8 @@ class Poller:
         """Stop polling of long poll server."""
 
         if self.running:
+            self.logger.debug('Stop polling')
+
             self.running = False
             self.task.cancel()
 

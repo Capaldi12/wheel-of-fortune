@@ -1,6 +1,8 @@
 """Wheel of fortune VK bot."""
 __all__ = ['setup_app']
 
+import logging
+
 from aiohttp_apispec import setup_aiohttp_apispec
 from aiohttp_session import session_middleware
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
@@ -23,7 +25,15 @@ from . import game
 def setup_app(config_path):
     """Create and configure an aiohttp application."""
 
-    app = Application(config_path)
+    app = Application(config_path,
+                      handler_args={'access_log_format': '%r %s %b'})
+
+    logging.basicConfig(
+        level=getattr(logging, app.config.log_level.upper(), logging.INFO),
+        format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+        datefmt='%y.%m.%d %H:%M:%S',
+
+    )
 
     app.middlewares.extend([
         error_handling_middleware,

@@ -24,13 +24,13 @@ class Poller(BasePoller):
         self.group_id = group_id
 
     async def _fail_handler(self, fail: BasePoller.Failed):
-        print(f'Polling failed with code {fail.code}')
+        self.logger.info(f'Polling failed: {fail.reason}')
 
         if fail.code == 1:
             self.ts = fail.ts
             return
 
-        print('Requesting new poller')
+        self.logger.info('Request new poller')
         poller = await self.vk.groups.getLongPollServer(group_id=self.group_id)
 
         self.key = poller.key
@@ -39,7 +39,7 @@ class Poller(BasePoller):
             self.server = poller.server
 
         await poller.dispose()
-        print('Resuming polling')
+        self.logger.info('Resume polling')
 
     def _prepare_update(self, update: dict) -> Any:
         match update['type']:

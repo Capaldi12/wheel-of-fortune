@@ -1,3 +1,4 @@
+log_level: DEBUG
 session:
   key: CaY5iCkYtN7DqXdiYK1BvmGrQuaSA4Tl4bEk9my0jc0=
 admin:
@@ -9,7 +10,7 @@ database:
   user: postgres
   password: postgres
   database: wheel_of_fortune
-  echo: true
+  echo: false
 bot:
   token: no_token_for_you
   group_id: 1

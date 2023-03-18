@@ -100,3 +100,5 @@ class Config(BaseConfig):
     session: SessionConfig
     admin: AdminConfig
     bot: BotConfig
+
+    log_level: str = 'INFO'

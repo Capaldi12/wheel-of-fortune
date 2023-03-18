@@ -19,7 +19,7 @@ class AdminAccessor(Accessor):
 
     async def startup(self, app: 'Application'):
         if not await self.get_by_email(app.config.admin.email):
-            print('Creating admin from config')
+            self.logger.info('Creating admin from config')
             await self.create(app.config.admin.email, app.config.admin.password)
 
     async def get_by_id(self, id_: int) -> Optional[Admin]:
